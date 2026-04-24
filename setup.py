@@ -12,5 +12,5 @@ if __name__ == '__main__':
           license='MIT',
           url='https://gitlab.com/darthoctopus/zeta.git',
           packages=find_packages(),
-          install_requires=['numpy', 'scipy', 'zeta', 'nifty-ls']
+          install_requires=['numpy', 'scipy', 'zeta']
           )
