@@ -13,9 +13,11 @@ def neg_lnL(arguments, P_obs, ν_range):
     ε_p_1 = ε_p_0 - 1/2 - (δν1/Δν)
     ε_p_2 = ε_p_0 - 1 - (δν2/Δν)
 
-    σ_gran = 100 * (ν_max/30)**(-0.7) # Gran. amplitude
-    τ_gran = 3000 * (ν_max / 30)**(-1.0) # Gran. timescale
-    W_noise = 2.0 # Whitenoise
+    # σ_gran = 100 * (ν_max/30)**(-0.7) # Gran. amplitude
+    # τ_gran = 3000 * (ν_max / 30)**(-1.0) # Gran. timescale
+    # W_noise = 2.0 # Whitenoise
+
+    # P_back = W_noise + (4 * σ_gran**2 * τ_gran * 1e-6) / (1 + (2 * np.pi * ν_sub * τ_gran * 1e-6)**2)
 
     # May change delta nu factor for stars other than KIC 7341231
     ν_mask = (ν_range >= ν_max-4*Δν) & (ν_range <= ν_max+4*Δν)
@@ -25,8 +27,6 @@ def neg_lnL(arguments, P_obs, ν_range):
     σ_env = 0.66*(ν_max)**(0.88)/np.sqrt(8*np.log(2)) # σ, W_env = 0.66*(ν_max)**(0.88)
     gauss = np.exp((-1/2)*((ν_sub-ν_max)/(σ_env))**2)
 
-    #Γ_p = Γ_p_ref * (1 + ((ν_sub - ν_max)/(1.5 * σ_env)))
-
     νp_0 = pure_modes(Δν, ΔΠ, ε_p_0 + (1/2), ε_g_1, ν_max)[0]
     P_l0_mod = sum_l0_lorentzians(ν_sub, νp_0, Γ_p)
 
@@ -35,17 +35,13 @@ def neg_lnL(arguments, P_obs, ν_range):
 
     νp_2, νg_2 = pure_modes(Δν, ΔΠ/np.sqrt(3), ε_p_2 + 1, ε_g_2, ν_max)
     P_l2_mod = sum(sum_mixed_lorentzians(ν_sub, q_1, Δν, ΔΠ/np.sqrt(3), Γ_p, m*ν_core, m*ν_env, νp_2, νg_2)*E[(2,abs(m))](i) for m in range (-2, 3)) * Vis_2
-    
-    # ν_range, q, Δν, ΔΠ, Γ_p, ν_core, ν_env, νp, νg
 
-    P_back = W_noise + (4 * σ_gran**2 * τ_gran * 1e-6) / (1 + (2 * np.pi * ν_sub * τ_gran * 1e-6)**2)
-
-    P_mod = np.clip(((P_l0_mod + P_l1_mod + P_l2_mod) * N * gauss) + P_back, eps, None)
+    P_mod = np.clip(((P_l0_mod + P_l1_mod + P_l2_mod) * N * gauss), eps, None)
     lnL = float(np.sum((P_obs_sub/P_mod)-np.log(P_obs_sub/P_mod)))
     
     return lnL if np.isfinite(lnL) else 1e15
 
-# Dispact dict
+# Dispatch dictionary
 E = {
         (1,0): lambda i: np.cos(i)**2,
         (1,1): lambda i: (1/2)*np.sin(i)**2,
@@ -55,7 +51,7 @@ E = {
     }
 
 def pure_modes(Δν, ΔΠ, ε_p, ε_g, ν_max):
-    # May change delta nu factor for stars other than KIC 7341231
+    # May change Δν factor for stars other than KIC 7341231
 
     min_n = np.round(np.floor((ν_max - 4*Δν) / Δν))
     max_n = np.round(np.ceil((ν_max + 4*Δν) / Δν))
@@ -81,8 +77,6 @@ def sum_mixed_lorentzians(ν_range, q, Δν, ΔΠ, Γ_p, ν_core, ν_env, νp, �
     νmp, νmg = couple(νp_env, νg_core, q, q)
 
     nu_mixed = np.concatenate([νmp, νmg])
-
-    # zeta_mixed = zeta_p(nu_mixed, q, ΔΠ, Δν, νp)
 
     matrix = Co.approx_coeffs(νp_env, νg_core, νmp, νmg, zeta_p(νmp, q, ΔΠ, Δν, νp_env), zeta_p(νmg, q, ΔΠ, Δν, νp_env))
 

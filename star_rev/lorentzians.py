@@ -30,3 +30,6 @@ def power_real_lorentzians(ν, νν, ΓΓ, AA):
     
     # return sum(np.abs(A * lorentzian_single(ν, ν0, Γ))**2
     #            for ν0, Γ, A in zip(νν, ΓΓ, AA))
+
+if __name__ == '__main__':
+    print("Egg")
