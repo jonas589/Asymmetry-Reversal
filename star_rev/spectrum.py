@@ -7,36 +7,38 @@ def neg_lnL(arguments, P_obs, ν_range):
 
     q_1, a, Δν, ΔΠ, ε_p_0, δν1, δν2, ε_g_1, ε_g_2, ν_max, Γ_p, N, ν_core, ν_env, i_deg, Vis_1, Vis_2, *_ = arguments
 
+    q_2 = a*((1-np.sqrt(1-((4*q_1)/(q_1+1)**2)**np.sqrt(3)))/((1+np.sqrt(1-((4*q_1)/(q_1+1)**2)**np.sqrt(3)))))
+
     i = np.radians(i_deg)
     eps = 1e-8
 
     ε_p_1 = ε_p_0 - 1/2 - (δν1/Δν)
     ε_p_2 = ε_p_0 - 1 - (δν2/Δν)
 
-    # σ_gran = 100 * (ν_max/30)**(-0.7) # Gran. amplitude
-    # τ_gran = 3000 * (ν_max / 30)**(-1.0) # Gran. timescale
-    # W_noise = 2.0 # Whitenoise
-
-    # P_back = W_noise + (4 * σ_gran**2 * τ_gran * 1e-6) / (1 + (2 * np.pi * ν_sub * τ_gran * 1e-6)**2)
+    σ_gran = 100 * (ν_max/30)**(-0.7) # Gran. amplitude
+    τ_gran = 3000 * (ν_max / 30)**(-1.0) # Gran. timescale
+    W_noise = 2.0 # Whitenoise
 
     # May change delta nu factor for stars other than KIC 7341231
     ν_mask = (ν_range >= ν_max-4*Δν) & (ν_range <= ν_max+4*Δν)
     ν_sub = ν_range[ν_mask]
     P_obs_sub = P_obs[ν_mask]
 
+    P_back = W_noise + (4 * σ_gran**2 * τ_gran * 1e-6) / (1 + (2 * np.pi * ν_sub * τ_gran * 1e-6)**2)
+
     σ_env = 0.66*(ν_max)**(0.88)/np.sqrt(8*np.log(2)) # σ, W_env = 0.66*(ν_max)**(0.88)
     gauss = np.exp((-1/2)*((ν_sub-ν_max)/(σ_env))**2)
 
-    νp_0 = pure_modes(Δν, ΔΠ, ε_p_0 + (1/2), ε_g_1, ν_max)[0]
+    νp_0 = pure_modes(Δν, ΔΠ, ε_p_0, ε_g_1, ν_max)[0]
     P_l0_mod = sum_l0_lorentzians(ν_sub, νp_0, Γ_p)
 
-    νp_1, νg_1 = pure_modes(Δν, ΔΠ, ε_p_1 + (1/2), ε_g_1, ν_max)
-    P_l1_mod = sum(sum_mixed_lorentzians(ν_sub, q_1, Δν, ΔΠ, Γ_p, m*ν_core, m*ν_env, νp_1, νg_1)*E[(1,abs(m))](i) for m in range(-1, 2)) * Vis_1
+    νp_1, νg_1 = pure_modes(Δν, ΔΠ, ε_p_1, ε_g_1, ν_max)
+    P_l1_mod = sum(sum_mixed_lorentzians(ν_sub, q_1, Δν, ΔΠ, Γ_p, m*ν_core, m*ν_env, νp_1, νg_1)[0]*E[(1,abs(m))](i) for m in range(-1, 2)) * Vis_1
 
-    νp_2, νg_2 = pure_modes(Δν, ΔΠ/np.sqrt(3), ε_p_2 + 1, ε_g_2, ν_max)
-    P_l2_mod = sum(sum_mixed_lorentzians(ν_sub, q_1, Δν, ΔΠ/np.sqrt(3), Γ_p, m*ν_core, m*ν_env, νp_2, νg_2)*E[(2,abs(m))](i) for m in range (-2, 3)) * Vis_2
+    νp_2, νg_2 = pure_modes(Δν, ΔΠ/np.sqrt(3), ε_p_2, ε_g_2, ν_max)
+    P_l2_mod = sum(sum_mixed_lorentzians(ν_sub, q_2, Δν, ΔΠ/np.sqrt(3), Γ_p, m*ν_core, m*ν_env, νp_2, νg_2)[0]*E[(2,abs(m))](i) for m in range (-2, 3)) * Vis_2
 
-    P_mod = np.clip(((P_l0_mod + P_l1_mod + P_l2_mod) * N * gauss), eps, None)
+    P_mod = np.clip(((P_l0_mod + P_l1_mod + P_l2_mod) * N * gauss)+P_back, eps, None)
     lnL = float(np.sum((P_obs_sub/P_mod)-np.log(P_obs_sub/P_mod)))
     
     return lnL if np.isfinite(lnL) else 1e15
@@ -66,19 +68,19 @@ def sum_l0_lorentzians(ν_range, νp, Γ_p):
     A_l0 = np.ones(len(νp))
     return lor.power_complex_lorentzians(ν_range, νp, Γ_p * A_l0**2, A_l0)
 
-def sum_mixed_lorentzians(ν_range, q, Δν, ΔΠ, Γ_p, ν_core, ν_env, νp, νg):
+def sum_mixed_lorentzians(ν_range, q_L, Δν, ΔΠ, Γ_p, ν_core, ν_env, νp, νg):
 
     νp_env = νp + ν_env
     νg_core = νg + ν_core
 
-    if not np.all(np.isfinite([q, Δν, ΔΠ, Γ_p, ν_core, ν_env])):
+    if not np.all(np.isfinite([q_L, Δν, ΔΠ, Γ_p, ν_core, ν_env])):
         return np.ones_like(ν_range) * 1e-10
 
-    νmp, νmg = couple(νp_env, νg_core, q, q)
+    νmp, νmg = couple(νp_env, νg_core, q_L, q_L)
 
-    nu_mixed = np.concatenate([νmp, νmg])
+    nu_mixed = np.concatenate((νmp, νmg))
 
-    matrix = Co.approx_coeffs(νp_env, νg_core, νmp, νmg, zeta_p(νmp, q, ΔΠ, Δν, νp_env), zeta_p(νmg, q, ΔΠ, Δν, νp_env))
+    matrix = Co.approx_coeffs(νp_env, νg_core, νmp, νmg, zeta_p(νmp, q_L, ΔΠ, Δν, νp_env), zeta_p(νmg, q_L, ΔΠ, Δν, νp_env))
 
     A_mixed = np.concatenate((np.diag(matrix[:len(νp_env), :len(νp_env)]), np.sum(matrix[:, len(νp_env):], axis=0)))
 
@@ -86,4 +88,4 @@ def sum_mixed_lorentzians(ν_range, q, Δν, ΔΠ, Γ_p, ν_core, ν_env, νp, �
 
     P_mod = lor.power_complex_lorentzians(ν_range, nu_mixed, Gamma_mixed, A_mixed)
 
-    return P_mod
+    return P_mod, nu_mixed
